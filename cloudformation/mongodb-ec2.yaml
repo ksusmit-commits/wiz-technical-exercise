@@ -1,0 +1,135 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Wiz Technical Exercise - MongoDB EC2
+
+Parameters:
+  KeyPairName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Default: wiz-quiz
+    Description: Existing EC2 Key Pair
+
+Resources:
+
+  MongoDBInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-09588768f512a824a
+      InstanceType: t3.medium
+      KeyName: !Ref KeyPairName
+
+      IamInstanceProfile:
+        Fn::ImportValue: wiz-ec2-instance-profile
+
+      NetworkInterfaces:
+        - AssociatePublicIpAddress: true
+          DeviceIndex: "0"
+
+          GroupSet:
+            - Fn::ImportValue: wiz-mongodb-sg
+
+          SubnetId:
+            Fn::ImportValue: wiz-public-subnet-a
+
+      Tags:
+        - Key: Name
+          Value: wiz-mongodb-server
+
+      UserData:
+        Fn::Base64: |
+          #!/bin/bash
+          set -ex
+
+          apt-get update -y
+          apt-get install -y curl unzip awscli gnupg
+
+          # Install REAL MongoDB 3.2 Key
+          curl -fsSL https://pgp.mongodb.com/server-3.2.asc | apt-key add -
+
+          # MongoDB 3.2 Repository
+          cat > /etc/apt/sources.list.d/mongodb-org-3.2.list <<EOF
+          deb [ arch=amd64 ] https://repo.mongodb.org/apt/ubuntu xenial/mongodb-org/3.2 multiverse
+          EOF
+
+          apt-get update -y
+
+          # Install vulnerable MongoDB 3.2
+          apt-get install -y --allow-unauthenticated \
+          mongodb-org=3.2.22 \
+          mongodb-org-server=3.2.22 \
+          mongodb-org-shell=3.2.22 \
+          mongodb-org-mongos=3.2.22 \
+          mongodb-org-tools=3.2.22
+
+          # Configure Mongo
+          sed -i 's/bindIp: 127.0.0.1/bindIp: 0.0.0.0/' /etc/mongod.conf
+
+          cat >> /etc/mongod.conf <<EOF
+          security:
+            authorization: enabled
+          EOF
+
+          systemctl enable mongod
+          systemctl restart mongod
+
+          sleep 30
+
+          # Create Tasky DB User
+          mongo <<EOF
+          use tasky
+
+          db.createUser({
+            user: "wizuser",
+            pwd: "wizpassword",
+            roles: [
+              {
+                role: "readWrite",
+                db: "tasky"
+              }
+            ]
+          })
+
+          db.test.insert({
+            initialized: true
+          })
+          EOF
+
+          # Backup Script
+          cat > /usr/local/bin/mongodb_backup.sh <<'EOF'
+          #!/bin/bash
+
+          TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+          BACKUP_NAME="mongodb_backup_${TIMESTAMP}"
+
+          mongodump \
+            --db tasky \
+            --username wizuser \
+            --password wizpassword \
+            --authenticationDatabase tasky \
+            --out /tmp/${BACKUP_NAME}
+
+          tar -czvf \
+            /tmp/${BACKUP_NAME}.tar.gz \
+            /tmp/${BACKUP_NAME}
+
+          aws s3 cp \
+            /tmp/${BACKUP_NAME}.tar.gz \
+            s3://wiz-technical-exercise-db-backups-886436966911-us-east-2/
+
+          rm -rf /tmp/${BACKUP_NAME}
+          rm -f /tmp/${BACKUP_NAME}.tar.gz
+          EOF
+
+          chmod +x /usr/local/bin/mongodb_backup.sh
+
+          echo "*/15 * * * * root /usr/local/bin/mongodb_backup.sh" >> /etc/crontab
+
+Outputs:
+
+  MongoPublicIP:
+    Description: Mongo Public IP
+    Value: !GetAtt MongoDBInstance.PublicIp
+
+  MongoPrivateIP:
+    Description: Mongo Private IP
+    Value: !GetAtt MongoDBInstance.PrivateIp
+    Export:
+      Name: wiz-mongo-private-ip

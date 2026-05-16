@@ -1,0 +1,71 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Wiz Technical Exercise - EKS Cluster
+
+Resources:
+
+# ======================================================
+# EKS CLUSTER
+# ======================================================
+
+  EKSCluster:
+    Type: AWS::EKS::Cluster
+    Properties:
+      Name: wiz-technical-exercise-eks-cluster
+      Version: "1.31"
+
+      RoleArn:
+        Fn::ImportValue: wiz-eks-cluster-role
+
+      ResourcesVpcConfig:
+        EndpointPublicAccess: true
+        EndpointPrivateAccess: true
+
+        SecurityGroupIds:
+          - Fn::ImportValue: wiz-eks-sg
+
+        SubnetIds:
+          - Fn::ImportValue: wiz-public-subnet-a
+          - Fn::ImportValue: wiz-public-subnet-b
+          - Fn::ImportValue: wiz-private-subnet-a
+          - Fn::ImportValue: wiz-private-subnet-b
+
+# ======================================================
+# MANAGED NODEGROUP
+# ======================================================
+
+  EKSNodeGroup:
+    Type: AWS::EKS::Nodegroup
+    DependsOn: EKSCluster
+
+    Properties:
+      ClusterName: !Ref EKSCluster
+      NodegroupName: wiz-technical-exercise-nodegroup
+
+      NodeRole:
+        Fn::ImportValue: wiz-eks-nodegroup-role
+
+      AmiType: AL2023_x86_64_STANDARD
+      CapacityType: ON_DEMAND
+      DiskSize: 20
+
+      InstanceTypes:
+        - t3.medium
+
+      ScalingConfig:
+        DesiredSize: 2
+        MinSize: 2
+        MaxSize: 2
+
+      Subnets:
+        - Fn::ImportValue: wiz-private-subnet-a
+        - Fn::ImportValue: wiz-private-subnet-b
+
+Outputs:
+
+  EKSClusterName:
+    Value: !Ref EKSCluster
+    Export:
+      Name: wiz-eks-cluster-name
+
+  EKSEndpoint:
+    Value: !GetAtt EKSCluster.Endpoint

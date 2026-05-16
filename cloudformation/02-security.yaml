@@ -1,0 +1,167 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Wiz Technical Exercise - Security + IAM Stack
+
+Resources:
+
+# ======================================================
+# SECURITY GROUPS
+# ======================================================
+
+  MongoDBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: MongoDB Security Group
+      VpcId:
+        Fn::ImportValue: wiz-vpc-id
+
+      SecurityGroupIngress:
+
+        # SSH exposed to internet (intentional finding)
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+
+        # MongoDB access from VPC
+        - IpProtocol: tcp
+          FromPort: 27017
+          ToPort: 27017
+          CidrIp: 10.0.0.0/16
+
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+
+      Tags:
+        - Key: Name
+          Value: mongodb-sg
+
+  EKSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: EKS Security Group
+      VpcId:
+        Fn::ImportValue: wiz-vpc-id
+
+      SecurityGroupIngress:
+        - IpProtocol: -1
+          CidrIp: 10.0.0.0/16
+
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+
+      Tags:
+        - Key: Name
+          Value: eks-sg
+
+# ======================================================
+# EC2 ADMIN ROLE
+# ======================================================
+
+  MongoEC2Role:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: wiz-se-ec2-admin-role-v2
+
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
+
+      ManagedPolicyArns:
+        # Intentional over-permission for Wiz finding
+        - arn:aws:iam::aws:policy/AdministratorAccess
+
+  MongoEC2InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      InstanceProfileName: wiz-se-ec2-admin-profile-v2
+
+      Roles:
+        - !Ref MongoEC2Role
+
+# ======================================================
+# EKS CLUSTER ROLE
+# ======================================================
+
+  EKSClusterRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: wiz-se-eks-cluster-role-v2
+
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - eks.amazonaws.com
+            Action:
+              - sts:AssumeRole
+
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEKSClusterPolicy
+
+# ======================================================
+# EKS NODEGROUP ROLE
+# ======================================================
+
+  EKSNodegroupRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: wiz-se-eks-nodegroup-role-v2
+
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
+
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
+        - arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy
+
+# ======================================================
+# OUTPUTS
+# ======================================================
+
+Outputs:
+
+  MongoDBSecurityGroup:
+    Value: !Ref MongoDBSecurityGroup
+    Export:
+      Name: wiz-mongodb-sg
+
+  EKSSecurityGroup:
+    Value: !Ref EKSSecurityGroup
+    Export:
+      Name: wiz-eks-sg
+
+  MongoInstanceProfile:
+    Value: !Ref MongoEC2InstanceProfile
+    Export:
+      Name: wiz-ec2-instance-profile
+
+  EKSClusterRoleArn:
+    Value: !GetAtt EKSClusterRole.Arn
+    Export:
+      Name: wiz-eks-cluster-role
+
+  EKSNodegroupRoleArn:
+    Value: !GetAtt EKSNodegroupRole.Arn
+    Export:
+      Name: wiz-eks-nodegroup-role

@@ -1,0 +1,74 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Wiz Technical Exercise - Storage Stack
+
+Resources:
+
+# ======================================================
+# S3 BACKUP BUCKET
+# ======================================================
+
+  MongoBackupBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: wiz-technical-exercise-db-backups-886436966911-us-east-2
+
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+        IgnorePublicAcls: false
+        BlockPublicPolicy: false
+        RestrictPublicBuckets: false
+
+      VersioningConfiguration:
+        Status: Suspended
+
+      Tags:
+        - Key: Name
+          Value: wiz-db-backup-bucket
+
+# ======================================================
+# BUCKET POLICY
+# ======================================================
+
+  MongoBackupBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref MongoBackupBucket
+
+      PolicyDocument:
+        Version: "2012-10-17"
+
+        Statement:
+
+          # Public List Bucket
+          - Sid: PublicListBucket
+            Effect: Allow
+            Principal: "*"
+
+            Action:
+              - s3:ListBucket
+
+            Resource:
+              !Sub arn:aws:s3:::${MongoBackupBucket}
+
+          # Public Read Objects
+          - Sid: PublicReadObjects
+            Effect: Allow
+            Principal: "*"
+
+            Action:
+              - s3:GetObject
+
+            Resource:
+              !Sub arn:aws:s3:::${MongoBackupBucket}/*
+
+Outputs:
+
+  BackupBucketName:
+    Value: !Ref MongoBackupBucket
+    Export:
+      Name: wiz-backup-bucket-name
+
+  BackupBucketArn:
+    Value: !GetAtt MongoBackupBucket.Arn
+    Export:
+      Name: wiz-backup-bucket-arn

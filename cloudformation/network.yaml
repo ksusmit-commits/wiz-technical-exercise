@@ -1,0 +1,221 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Wiz Technical Exercise - Network Stack (us-east-2)
+
+Resources:
+
+# ======================================================
+# VPC
+# ======================================================
+
+  WizVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+
+      Tags:
+        - Key: Name
+          Value: wiz-vpc
+
+# ======================================================
+# INTERNET GATEWAY
+# ======================================================
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: wiz-igw
+
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref WizVPC
+      InternetGatewayId: !Ref InternetGateway
+
+# ======================================================
+# PUBLIC SUBNETS
+# ======================================================
+
+  PublicSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref WizVPC
+      AvailabilityZone: us-east-2a
+      CidrBlock: 10.0.1.0/24
+      MapPublicIpOnLaunch: true
+
+      Tags:
+        - Key: Name
+          Value: wiz-public-subnet-a
+
+  PublicSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref WizVPC
+      AvailabilityZone: us-east-2b
+      CidrBlock: 10.0.2.0/24
+      MapPublicIpOnLaunch: true
+
+      Tags:
+        - Key: Name
+          Value: wiz-public-subnet-b
+
+# ======================================================
+# PRIVATE SUBNETS
+# ======================================================
+
+  PrivateSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref WizVPC
+      AvailabilityZone: us-east-2a
+      CidrBlock: 10.0.3.0/24
+      MapPublicIpOnLaunch: false
+
+      Tags:
+        - Key: Name
+          Value: wiz-private-subnet-a
+
+  PrivateSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref WizVPC
+      AvailabilityZone: us-east-2b
+      CidrBlock: 10.0.4.0/24
+      MapPublicIpOnLaunch: false
+
+      Tags:
+        - Key: Name
+          Value: wiz-private-subnet-b
+
+# ======================================================
+# ELASTIC IP
+# ======================================================
+
+  NatGatewayEIP:
+    Type: AWS::EC2::EIP
+    DependsOn: AttachGateway
+
+    Properties:
+      Domain: vpc
+
+# ======================================================
+# NAT GATEWAY
+# ======================================================
+
+  NatGateway:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId:
+        !GetAtt NatGatewayEIP.AllocationId
+
+      SubnetId:
+        !Ref PublicSubnetA
+
+      Tags:
+        - Key: Name
+          Value: wiz-nat-gateway
+
+# ======================================================
+# PUBLIC ROUTE TABLE
+# ======================================================
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref WizVPC
+
+      Tags:
+        - Key: Name
+          Value: wiz-public-rt
+
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: AttachGateway
+
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+# ======================================================
+# PRIVATE ROUTE TABLE
+# ======================================================
+
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref WizVPC
+
+      Tags:
+        - Key: Name
+          Value: wiz-private-rt
+
+  PrivateRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway
+
+# ======================================================
+# ROUTE ASSOCIATIONS
+# ======================================================
+
+  PublicSubnetARouteAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnetA
+
+  PublicSubnetBRouteAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnetB
+
+  PrivateSubnetARouteAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      SubnetId: !Ref PrivateSubnetA
+
+  PrivateSubnetBRouteAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      SubnetId: !Ref PrivateSubnetB
+
+# ======================================================
+# OUTPUTS
+# ======================================================
+
+Outputs:
+
+  VPCId:
+    Value: !Ref WizVPC
+    Export:
+      Name: wiz-vpc-id
+
+  PublicSubnetA:
+    Value: !Ref PublicSubnetA
+    Export:
+      Name: wiz-public-subnet-a
+
+  PublicSubnetB:
+    Value: !Ref PublicSubnetB
+    Export:
+      Name: wiz-public-subnet-b
+
+  PrivateSubnetA:
+    Value: !Ref PrivateSubnetA
+    Export:
+      Name: wiz-private-subnet-a
+
+  PrivateSubnetB:
+    Value: !Ref PrivateSubnetB
+    Export:
+      Name: wiz-private-subnet-b

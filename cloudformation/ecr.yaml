@@ -1,0 +1,35 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Wiz Technical Exercise - ECR Repository
+
+Resources:
+
+  TaskyECRRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: tasky
+
+      ImageTagMutability: MUTABLE
+
+      ImageScanningConfiguration:
+        ScanOnPush: false
+
+      EncryptionConfiguration:
+        EncryptionType: AES256
+
+      Tags:
+        - Key: Name
+          Value: tasky-ecr
+
+Outputs:
+
+  ECRRepositoryName:
+    Description: ECR Repository Name
+    Value: !Ref TaskyECRRepository
+    Export:
+      Name: wiz-ecr-name
+
+  ECRRepositoryURI:
+    Description: ECR Repository URI
+    Value: !GetAtt TaskyECRRepository.RepositoryUri
+    Export:
+      Name: wiz-ecr-uri
