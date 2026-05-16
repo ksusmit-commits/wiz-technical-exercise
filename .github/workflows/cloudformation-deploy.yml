@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - 'cloudformation/**'
+workflow_dispatch:
 
 jobs:
   deploy:
