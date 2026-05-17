@@ -31,4 +31,4 @@ spec:
 
         env:
         - name: MONGODB_URI
-          value: "mongodb://wizuser:wizpassword@REPLACE_MONGO_PRIVATE_IP:27017/tasky?authSource=tasky"
+          value: "mongodb://wizuser:wizpassword@10.0.1.106:27017/tasky?authSource=tasky"
