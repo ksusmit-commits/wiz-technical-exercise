@@ -1,0 +1,34 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tasky-app
+  namespace: default
+
+spec:
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: tasky
+
+  template:
+    metadata:
+      labels:
+        app: tasky
+
+    spec:
+      serviceAccountName: cluster-admin-sa
+
+      containers:
+      - name: tasky
+
+        image: 886436966911.dkr.ecr.us-east-1.amazonaws.com/tasky@sha256:7eda33f256ec5327dcb824fc5b36db589ea58f30c1a8bacc01614801230c45e5
+
+        imagePullPolicy: Always
+
+        ports:
+        - containerPort: 8080
+
+        env:
+        - name: MONGODB_URI
+          value: "mongodb://wizuser:wizpassword@10.0.1.144:27017/tasky?authSource=admin"
