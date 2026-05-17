@@ -12,10 +12,14 @@ Resources:
   MongoDBInstance:
     Type: AWS::EC2::Instance
     Properties:
+      # Intentionally outdated Ubuntu AMI for Wiz Exercise
       ImageId: ami-09588768f512a824a
+
       InstanceType: t3.medium
+
       KeyName: !Ref KeyPairName
 
+      # Intentionally over-permissive IAM role
       IamInstanceProfile:
         Fn::ImportValue: wiz-ec2-instance-profile
 
@@ -38,44 +42,47 @@ Resources:
           #!/bin/bash
           set -ex
 
-          apt-get update -y
-          apt-get install -y curl unzip awscli gnupg
+          export DEBIAN_FRONTEND=noninteractive
 
-          # Install REAL MongoDB 3.2 Key
+          apt-get update -y
+          apt-get install -y curl unzip awscli gnupg netcat
+
+          # MongoDB 3.2 signing key
           curl -fsSL https://pgp.mongodb.com/server-3.2.asc | apt-key add -
 
-          # MongoDB 3.2 Repository
+          # MongoDB 3.2 repo (legacy)
           cat > /etc/apt/sources.list.d/mongodb-org-3.2.list <<EOF
           deb [ arch=amd64 ] https://repo.mongodb.org/apt/ubuntu xenial/mongodb-org/3.2 multiverse
           EOF
 
           apt-get update -y
 
-          # Install vulnerable MongoDB 3.2
+          # Install intentionally vulnerable MongoDB 3.2
           apt-get install -y --allow-unauthenticated \
-          mongodb-org=3.2.22 \
-          mongodb-org-server=3.2.22 \
-          mongodb-org-shell=3.2.22 \
-          mongodb-org-mongos=3.2.22 \
-          mongodb-org-tools=3.2.22
+            mongodb-org=3.2.22 \
+            mongodb-org-server=3.2.22 \
+            mongodb-org-shell=3.2.22 \
+            mongodb-org-mongos=3.2.22 \
+            mongodb-org-tools=3.2.22
 
-          # Configure Mongo
+          # Configure MongoDB for external access
           sed -i 's/bindIp: 127.0.0.1/bindIp: 0.0.0.0/' /etc/mongod.conf
 
-          cat >> /etc/mongod.conf <<EOF
-          security:
-            authorization: enabled
-          EOF
-
+          # Start MongoDB WITHOUT auth first
+          systemctl daemon-reload
           systemctl enable mongod
           systemctl restart mongod
 
-          sleep 30
+          # Wait for Mongo to be ready
+          until nc -z localhost 27017; do
+            echo "Waiting for MongoDB..."
+            sleep 5
+          done
 
-          # Create Tasky DB User
-          mongo <<EOF
-          use tasky
+          sleep 10
 
+          # Create Tasky database user
+          mongo tasky --eval '
           db.createUser({
             user: "wizuser",
             pwd: "wizpassword",
@@ -85,14 +92,26 @@ Resources:
                 db: "tasky"
               }
             ]
-          })
+          })'
 
+          # Seed test document
+          mongo tasky --eval '
           db.test.insert({
             initialized: true
-          })
+          })'
+
+          # Enable authentication
+          cat >> /etc/mongod.conf <<EOF
+          security:
+            authorization: enabled
           EOF
 
-          # Backup Script
+          systemctl restart mongod
+
+          # Wait for authenticated Mongo startup
+          sleep 20
+
+          # Backup script
           cat > /usr/local/bin/mongodb_backup.sh <<'EOF'
           #!/bin/bash
 
@@ -120,6 +139,7 @@ Resources:
 
           chmod +x /usr/local/bin/mongodb_backup.sh
 
+          # Run backup every 15 minutes
           echo "*/15 * * * * root /usr/local/bin/mongodb_backup.sh" >> /etc/crontab
 
 Outputs:

@@ -22,7 +22,7 @@ spec:
       containers:
       - name: tasky
 
-        image: 886436966911.dkr.ecr.us-east-1.amazonaws.com/tasky@sha256:7eda33f256ec5327dcb824fc5b36db589ea58f30c1a8bacc01614801230c45e5
+        image: 886436966911.dkr.ecr.us-east-2.amazonaws.com/tasky:latest
 
         imagePullPolicy: Always
 
@@ -31,4 +31,4 @@ spec:
 
         env:
         - name: MONGODB_URI
-          value: "mongodb://wizuser:wizpassword@REPLACE_MONGO_PRIVATE_IP:27017/tasky?authSource=admin"
+          value: "mongodb://wizuser:wizpassword@REPLACE_MONGO_PRIVATE_IP:27017/tasky?authSource=tasky"

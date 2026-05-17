@@ -7,39 +7,11 @@ Resources:
 # SECURITY GROUPS
 # ======================================================
 
-  MongoDBSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupDescription: MongoDB Security Group
-      VpcId:
-        Fn::ImportValue: wiz-vpc-id
-
-      SecurityGroupIngress:
-
-        # SSH exposed to internet (intentional finding)
-        - IpProtocol: tcp
-          FromPort: 22
-          ToPort: 22
-          CidrIp: 0.0.0.0/0
-
-        # MongoDB access from VPC
-        - IpProtocol: tcp
-          FromPort: 27017
-          ToPort: 27017
-          CidrIp: 10.0.0.0/16
-
-      SecurityGroupEgress:
-        - IpProtocol: -1
-          CidrIp: 0.0.0.0/0
-
-      Tags:
-        - Key: Name
-          Value: mongodb-sg
-
   EKSSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: EKS Security Group
+
       VpcId:
         Fn::ImportValue: wiz-vpc-id
 
@@ -55,8 +27,38 @@ Resources:
         - Key: Name
           Value: eks-sg
 
+  MongoDBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: MongoDB Security Group
+
+      VpcId:
+        Fn::ImportValue: wiz-vpc-id
+
+      SecurityGroupIngress:
+
+        # SSH exposed to internet (Intentional Wiz finding)
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+
+        # MongoDB access ONLY from EKS cluster
+        - IpProtocol: tcp
+          FromPort: 27017
+          ToPort: 27017
+          SourceSecurityGroupId: !Ref EKSSecurityGroup
+
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+
+      Tags:
+        - Key: Name
+          Value: mongodb-sg
+
 # ======================================================
-# EC2 ADMIN ROLE
+# EC2 ADMIN ROLE (INTENTIONALLY OVER-PERMISSIVE)
 # ======================================================
 
   MongoEC2Role:
@@ -76,8 +78,11 @@ Resources:
               - sts:AssumeRole
 
       ManagedPolicyArns:
-        # Intentional over-permission for Wiz finding
+        # Intentional Wiz finding
         - arn:aws:iam::aws:policy/AdministratorAccess
+
+        # SSM access for management/recovery
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
 
   MongoEC2InstanceProfile:
     Type: AWS::IAM::InstanceProfile
@@ -142,26 +147,31 @@ Resources:
 Outputs:
 
   MongoDBSecurityGroup:
+    Description: MongoDB Security Group
     Value: !Ref MongoDBSecurityGroup
     Export:
       Name: wiz-mongodb-sg
 
   EKSSecurityGroup:
+    Description: EKS Security Group
     Value: !Ref EKSSecurityGroup
     Export:
       Name: wiz-eks-sg
 
   MongoInstanceProfile:
+    Description: EC2 Instance Profile
     Value: !Ref MongoEC2InstanceProfile
     Export:
       Name: wiz-ec2-instance-profile
 
   EKSClusterRoleArn:
+    Description: EKS Cluster Role ARN
     Value: !GetAtt EKSClusterRole.Arn
     Export:
       Name: wiz-eks-cluster-role
 
   EKSNodegroupRoleArn:
+    Description: EKS Nodegroup Role ARN
     Value: !GetAtt EKSNodegroupRole.Arn
     Export:
       Name: wiz-eks-nodegroup-role

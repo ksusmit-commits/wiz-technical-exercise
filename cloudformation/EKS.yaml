@@ -13,6 +13,11 @@ Resources:
       Name: wiz-technical-exercise-eks-cluster
       Version: "1.31"
 
+      AccessConfig:
+        AuthenticationMode: API_AND_CONFIG_MAP
+
+      BootstrapSelfManagedAddons: true
+
       RoleArn:
         Fn::ImportValue: wiz-eks-cluster-role
 
@@ -30,7 +35,7 @@ Resources:
           - Fn::ImportValue: wiz-private-subnet-b
 
 # ======================================================
-# MANAGED NODEGROUP
+# MANAGED NODE GROUP
 # ======================================================
 
   EKSNodeGroup:
@@ -60,12 +65,50 @@ Resources:
         - Fn::ImportValue: wiz-private-subnet-a
         - Fn::ImportValue: wiz-private-subnet-b
 
+# ======================================================
+# EKS ADDONS
+# ======================================================
+
+  VPCCNIAddon:
+    Type: AWS::EKS::Addon
+    DependsOn: EKSNodeGroup
+    Properties:
+      ClusterName: !Ref EKSCluster
+      AddonName: vpc-cni
+      ResolveConflicts: OVERWRITE
+
+  CoreDNSAddon:
+    Type: AWS::EKS::Addon
+    DependsOn: EKSNodeGroup
+    Properties:
+      ClusterName: !Ref EKSCluster
+      AddonName: coredns
+      ResolveConflicts: OVERWRITE
+
+  KubeProxyAddon:
+    Type: AWS::EKS::Addon
+    DependsOn: EKSNodeGroup
+    Properties:
+      ClusterName: !Ref EKSCluster
+      AddonName: kube-proxy
+      ResolveConflicts: OVERWRITE
+
+  PodIdentityAddon:
+    Type: AWS::EKS::Addon
+    DependsOn: EKSNodeGroup
+    Properties:
+      ClusterName: !Ref EKSCluster
+      AddonName: eks-pod-identity-agent
+      ResolveConflicts: OVERWRITE
+
 Outputs:
 
   EKSClusterName:
+    Description: EKS Cluster Name
     Value: !Ref EKSCluster
     Export:
       Name: wiz-eks-cluster-name
 
   EKSEndpoint:
+    Description: EKS Endpoint
     Value: !GetAtt EKSCluster.Endpoint
