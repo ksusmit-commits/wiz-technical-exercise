@@ -38,3 +38,4 @@ jobs:
         run: |
           docker push \
           886436966911.dkr.ecr.us-east-2.amazonaws.com/tasky:latest
+
